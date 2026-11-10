@@ -159,3 +159,58 @@ func TestArchiveWriterFlushError(t *testing.T) {
 		t.Fatal("Archive: expected flush error, got nil")
 	}
 }
+
+// writeFixture creates a temp source tree:
+// demo/a.txt, demo/sub/b.txt, demo/empty/ (empty dir), demo/link.txt -> a.txt
+func writeFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, d := range []string{"demo/sub", "demo/empty"} {
+		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "demo", "a.txt"), []byte("alpha"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "demo", "sub", "b.txt"), []byte("beta"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("a.txt", filepath.Join(dir, "demo", "link.txt")); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestArchiveDirectory(t *testing.T) {
+	fixture := writeFixture(t)
+	outDir := t.TempDir()
+
+	res, err := tgz.Archive([]string{filepath.Join(fixture, "demo")}, tgz.WithDir(outDir), tgz.WithTime(fixedTime))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	if res.Name != "demo_20261110-203005.tar.gz" {
+		t.Errorf("Name = %q, want demo_20261110-203005.tar.gz", res.Name)
+	}
+
+	entries := readEntriesFile(t, res.Path)
+	want := map[string]entry{
+		"demo":           {typeflag: tar.TypeDir},
+		"demo/a.txt":     {typeflag: tar.TypeReg, content: "alpha"},
+		"demo/sub":       {typeflag: tar.TypeDir},
+		"demo/sub/b.txt": {typeflag: tar.TypeReg, content: "beta"},
+		"demo/empty":     {typeflag: tar.TypeDir},
+		"demo/link.txt":  {typeflag: tar.TypeSymlink, link: "a.txt"},
+	}
+	for name, e := range want {
+		got, ok := entries[name]
+		if !ok {
+			t.Errorf("entry %s missing, got %v", name, entries)
+			continue
+		}
+		if got.typeflag != e.typeflag || got.content != e.content || got.link != e.link {
+			t.Errorf("entry %s = %+v, want %+v", name, got, e)
+		}
+	}
+}
