@@ -12,6 +12,11 @@
 - lib 仓库（Task 1-7）：`/Users/afei/github/go-tgz`
 - CLI 仓库（Task 8）：`/Users/afei/github/aric-go/tgz`
 
+**执行状态（2026-11-10）：**
+- Task 1-7 ✅ 全部完成并通过双审（实现审查 + 质量审查），提交区间 `579f44b..91d14e4`（10 commits），22/22 测试通过
+- 已批准的偏差：`Filename` 参数 `ts`→`tsLayout`；stdin 混入其他 source 由静默忽略改为报错；写入器 Close 错误检查 + 失败清理半成品归档（复审加固）；补充 MIT LICENSE
+- Task 8 ⏸ 等待用户推送 go-tgz 并打 tag `v1.0.0` 后执行
+
 **注意：** 测试命令统一用 `go test __tests__/*.go -v`（全量 glob，helpers 在 tgz_test.go 中共享；单跑某个文件会因缺 helper 编译失败，属预期）。
 
 ---
