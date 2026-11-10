@@ -108,6 +108,9 @@ func TestArchiveStdinRejectsExtraSources(t *testing.T) {
 }
 
 func TestArchiveRemovesPartialOnFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("chmod-000 does not block root from reading the file")
+	}
 	dir := t.TempDir()
 	srcDir := filepath.Join(dir, "src")
 	if err := os.Mkdir(srcDir, 0o755); err != nil {
@@ -212,5 +215,93 @@ func TestArchiveDirectory(t *testing.T) {
 		if got.typeflag != e.typeflag || got.content != e.content || got.link != e.link {
 			t.Errorf("entry %s = %+v, want %+v", name, got, e)
 		}
+	}
+}
+
+func TestArchiveOptionsMatrix(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "demo.txt")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+
+	tests := []struct {
+		name string
+		opts []tgz.Option
+		want string
+	}{
+		{"pre and suf", []tgz.Option{tgz.WithPrefix("snap"), tgz.WithSuffix("v1"), tgz.WithTime(fixedTime)}, "snap_demo_20261110-203005_v1.tar.gz"},
+		{"custom ts", []tgz.Option{tgz.WithTimestamp("20060102"), tgz.WithTime(fixedTime)}, "demo_20261110.tar.gz"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := append(tt.opts, tgz.WithDir(outDir))
+			res, err := tgz.Archive([]string{src}, opts...)
+			if err != nil {
+				t.Fatalf("Archive: %v", err)
+			}
+			if res.Name != tt.want {
+				t.Errorf("Name = %q, want %q", res.Name, tt.want)
+			}
+			if _, err := os.Stat(res.Path); err != nil {
+				t.Errorf("archive not created: %v", err)
+			}
+		})
+	}
+}
+
+func TestArchiveCreatesOutputDir(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "demo.txt")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outDir := filepath.Join(t.TempDir(), "nested", "backup")
+
+	res, err := tgz.Archive([]string{src}, tgz.WithDir(outDir), tgz.WithTime(fixedTime))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	if _, err := os.Stat(res.Path); err != nil {
+		t.Errorf("archive not created in auto-made dir: %v", err)
+	}
+}
+
+func TestArchiveMultipleSources(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "first.txt")
+	b := filepath.Join(dir, "second.txt")
+	if err := os.WriteFile(a, []byte("1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(b, []byte("2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+
+	res, err := tgz.Archive([]string{a, b}, tgz.WithDir(outDir), tgz.WithTime(fixedTime))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	if res.Name != "first_20261110-203005.tar.gz" {
+		t.Errorf("Name = %q, want first_20261110-203005.tar.gz", res.Name)
+	}
+	entries := readEntriesFile(t, res.Path)
+	if entries["first.txt"].content != "1" || entries["second.txt"].content != "2" {
+		t.Errorf("entries = %v, want both files packed", entries)
+	}
+}
+
+func TestArchiveSourceNotFound(t *testing.T) {
+	_, err := tgz.Archive([]string{"definitely-missing.txt"}, tgz.WithDir(t.TempDir()))
+	if err == nil || !strings.Contains(err.Error(), "source not found: definitely-missing.txt") {
+		t.Errorf("err = %v, want source not found", err)
+	}
+}
+
+func TestArchiveNoSources(t *testing.T) {
+	if _, err := tgz.Archive(nil); err == nil || !strings.Contains(err.Error(), "no sources") {
+		t.Errorf("err = %v, want no sources error", err)
 	}
 }
