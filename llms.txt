@@ -34,7 +34,7 @@
 ## Behavior notes
 
 - Validate-all-then-pack; failed packs remove the partial archive — no half-written archives on disk.
-- Dirs: recursive, entries relative to the dir itself, empty dirs kept, symlinks stored not followed.
+- Dirs: recursive, entries relative to the dir itself, prefixed with the directory's name (e.g. demo/a.txt), empty dirs kept, symlinks stored not followed.
 - Checked writer closes: a failed gzip flush surfaces as an error, never a silent truncated success.
 
 ## Tests

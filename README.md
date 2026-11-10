@@ -21,7 +21,11 @@ import (
 func main() {
 	// defaults: ./demo_20261110-203005.tar.gz
 	res, err := tgz.Archive([]string{"demo.txt"})
-	fmt.Println(res.Path, err)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res.Path)
 
 	// customized
 	res, _ = tgz.Archive(
@@ -52,7 +56,7 @@ func main() {
 - filename: `[{prefix}_]{base}_{timestamp}[_{suffix}].tar.gz`; `base` is the first source's basename (extension stripped), `bk` in stdin mode
 - sources[0] `"-"` packs the `WithReader` stream as a single `stdin` entry; mixing `"-"` with other sources is an error
 - all sources are validated before packing; a missing source aborts with `source not found: xxx` and no archive is written; a failed pack removes the partial archive
-- directories are packed recursively with entry paths relative to the directory itself; empty dirs are kept; symlinks are stored as symlinks (not followed)
+- directories are packed recursively with entry paths relative to the directory itself, prefixed with the directory's name (e.g. demo/a.txt); empty dirs are kept; symlinks are stored as symlinks (not followed)
 - the library never prints; logs are the caller's job
 
 ## Errors
