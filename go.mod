@@ -1,3 +1,3 @@
-module github.com/afeiship/tgz
+module github.com/afeiship/go-tgz
 
 go 1.21.0
