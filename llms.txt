@@ -1,0 +1,42 @@
+# go-tgz
+
+> Pack files, directories and streams into timestamped .tar.gz archives.
+> Go library, standard library only (archive/tar + compress/gzip).
+> Import: github.com/afeiship/go-tgz (package tgz)
+
+## API
+
+- tgz.Archive(sources []string, opts ...Option) (*Result, error) — validate sources, build timestamped filename, create output dir, write tar.gz. sources[0] == "-" packs the WithReader stream as a single "stdin" entry (base name falls back to "bk"). Never prints.
+- tgz.Filename(base, pre, tsLayout, suf string, t time.Time) string — "[{pre}_]{base}_{ts}[_{suf}].tar.gz"; invalid layout passes through verbatim.
+
+## Options
+
+- WithPrefix(string) — tag before basename
+- WithSuffix(string) — tag after timestamp
+- WithDir(string) — output dir, default ".", auto-created; ignored when WithWriter is set
+- WithTimestamp(string) — Go time layout, default "20060102-150405"
+- WithWriter(io.Writer) — stream mode, no file written, Result.Path == ""; takes precedence over WithDir
+- WithReader(io.Reader) — data source for "-"
+- WithTime(time.Time) — fixed timestamp, default time.Now()
+
+## Result
+
+- Name string — archive filename
+- Path string — full path, empty in stream mode
+
+## Errors
+
+- "no sources given"
+- "reader is required for source \"-\""
+- "stdin mode takes a single source \"-\""
+- "source not found: <path>" (other IO errors wrap the cause with %w)
+
+## Behavior notes
+
+- Validate-all-then-pack; failed packs remove the partial archive — no half-written archives on disk.
+- Dirs: recursive, entries relative to the dir itself, empty dirs kept, symlinks stored not followed.
+- Checked writer closes: a failed gzip flush surfaces as an error, never a silent truncated success.
+
+## Tests
+
+go test __tests__/*.go -v
