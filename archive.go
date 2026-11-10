@@ -1,5 +1,9 @@
 package tgz
 
+// The internals below are ported verbatim from aric-go/tgz cmd/archive.go.
+// Deliberate deviation: close errors are checked so a failed gzip flush
+// cannot be reported as success.
+
 import (
 	"archive/tar"
 	"compress/gzip"
@@ -11,14 +15,23 @@ import (
 )
 
 // writeTarGz packs sources into gzipped tar, writing to w.
-// A source "-" reads from r (only valid as the single source).
+// A source "-" reads from r (only valid as the single source; Archive
+// has already truncated the source list to that single "-").
 // Directories are walked recursively with entry paths relative to the
 // directory itself. All sources must already be validated by the caller.
-func writeTarGz(w io.Writer, sources []string, r io.Reader) error {
+func writeTarGz(w io.Writer, sources []string, r io.Reader) (err error) {
 	gzw := gzip.NewWriter(w)
-	defer gzw.Close()
+	defer func() {
+		if e := gzw.Close(); err == nil && e != nil {
+			err = e
+		}
+	}()
 	tw := tar.NewWriter(gzw)
-	defer tw.Close()
+	defer func() {
+		if e := tw.Close(); err == nil && e != nil {
+			err = e
+		}
+	}()
 
 	if len(sources) == 1 && sources[0] == "-" {
 		return addFromReader(tw, r)

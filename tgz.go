@@ -3,8 +3,10 @@
 package tgz
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,6 +47,7 @@ func WithPrefix(p string) Option { return func(o *options) { o.prefix = p } }
 func WithSuffix(s string) Option { return func(o *options) { o.suffix = s } }
 
 // WithDir sets the output directory (auto-created). Default ".".
+// Ignored when WithWriter is set.
 func WithDir(dir string) Option { return func(o *options) { o.dir = dir } }
 
 // WithTimestamp sets the timestamp layout (Go time format).
@@ -52,6 +55,7 @@ func WithDir(dir string) Option { return func(o *options) { o.dir = dir } }
 func WithTimestamp(layout string) Option { return func(o *options) { o.ts = layout } }
 
 // WithWriter streams the gzip output to w instead of writing a file.
+// Takes precedence over WithDir.
 func WithWriter(w io.Writer) Option { return func(o *options) { o.writer = w } }
 
 // WithReader provides the data for the "-" source (stdin mode).
@@ -79,6 +83,9 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 		if o.reader == nil {
 			return nil, fmt.Errorf("reader is required for source \"-\"")
 		}
+		if len(sources) > 1 {
+			return nil, fmt.Errorf("stdin mode takes a single source \"-\"")
+		}
 		sources = sources[:1]
 	}
 
@@ -87,7 +94,10 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 		base = strings.TrimSuffix(filepath.Base(sources[0]), filepath.Ext(sources[0]))
 		for _, src := range sources {
 			if _, err := os.Lstat(src); err != nil {
-				return nil, fmt.Errorf("source not found: %s", src)
+				if errors.Is(err, fs.ErrNotExist) {
+					return nil, fmt.Errorf("source not found: %s", src)
+				}
+				return nil, fmt.Errorf("source %s: %w", src, err)
 			}
 		}
 	}
@@ -108,10 +118,16 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer out.Close()
 
+	path := filepath.Join(o.dir, name)
 	if err := writeTarGz(out, sources, o.reader); err != nil {
+		out.Close()
+		os.Remove(path)
 		return nil, err
 	}
-	return &Result{Name: name, Path: filepath.Join(o.dir, name)}, nil
+	if err := out.Close(); err != nil {
+		os.Remove(path)
+		return nil, err
+	}
+	return &Result{Name: name, Path: path}, nil
 }

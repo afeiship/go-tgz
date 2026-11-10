@@ -95,3 +95,67 @@ func TestArchiveFile(t *testing.T) {
 		t.Errorf("entry demo.txt = %+v, want reg file with content %q", e, "hello")
 	}
 }
+
+func TestArchiveStdinRejectsExtraSources(t *testing.T) {
+	_, err := tgz.Archive([]string{"-", "extra.txt"},
+		tgz.WithReader(strings.NewReader("x")), tgz.WithDir(t.TempDir()))
+	if err == nil {
+		t.Fatal("Archive: expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "stdin mode takes a single source") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "stdin mode takes a single source")
+	}
+}
+
+func TestArchiveRemovesPartialOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	srcDir := filepath.Join(dir, "src")
+	if err := os.Mkdir(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "a.txt"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bPath := filepath.Join(srcDir, "b.txt")
+	if err := os.WriteFile(bPath, []byte("b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(bPath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(bPath, 0o644) })
+
+	outDir := t.TempDir()
+	if _, err := tgz.Archive([]string{srcDir}, tgz.WithDir(outDir), tgz.WithTime(fixedTime)); err == nil {
+		t.Fatal("Archive: expected error, got nil")
+	}
+	leftovers, err := filepath.Glob(filepath.Join(outDir, "*.tar.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leftovers) != 0 {
+		t.Errorf("partial archive left behind: %v", leftovers)
+	}
+}
+
+// failWriter accepts the first write (the gzip header) and fails every
+// subsequent one, so the failure only surfaces when the gzip writer
+// flushes its buffered data on Close.
+type failWriter struct {
+	writes int
+}
+
+func (w *failWriter) Write(p []byte) (int, error) {
+	w.writes++
+	if w.writes == 1 {
+		return len(p), nil
+	}
+	return 0, io.ErrShortWrite
+}
+
+func TestArchiveWriterFlushError(t *testing.T) {
+	if _, err := tgz.Archive([]string{"-"},
+		tgz.WithReader(strings.NewReader("data")), tgz.WithWriter(&failWriter{})); err == nil {
+		t.Fatal("Archive: expected flush error, got nil")
+	}
+}
