@@ -1,0 +1,11 @@
+{
+  "name": "@jswork/go-tgz",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Tgz for go.",
+  "license": "MIT",
+  "scripts": {
+    "test": "go test __tests__/*.go -v",
+    "release": "release-it"
+  }
+}
