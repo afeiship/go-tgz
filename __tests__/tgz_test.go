@@ -3,6 +3,7 @@ package tgz_test
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"io"
 	"io/fs"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/afeiship/go-tgz"
+	azip "github.com/alexmullins/zip"
 )
 
 var fixedTime = time.Date(2026, 11, 10, 20, 30, 5, 0, time.UTC)
@@ -405,5 +407,23 @@ func TestArchiveZipRoundTrip(t *testing.T) {
 		if got.typeflag != e.typeflag || got.content != e.content || got.link != e.link {
 			t.Errorf("entry %s = %+v, want %+v", name, got, e)
 		}
+	}
+}
+
+func TestArchiveZipPasswordStreamMode(t *testing.T) {
+	var buf bytes.Buffer
+	_, err := tgz.Archive([]string{"-"},
+		tgz.WithReader(strings.NewReader("data")),
+		tgz.WithWriter(&buf), tgz.WithTime(fixedTime),
+		tgz.WithFormat(tgz.FormatZip), tgz.WithPassword("pw"))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	rc, err := azip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("NewReader: %v", err)
+	}
+	if len(rc.File) != 1 || !rc.File[0].IsEncrypted() {
+		t.Fatalf("want single encrypted stdin entry, got %v", rc.File)
 	}
 }

@@ -5,11 +5,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/afeiship/go-tgz"
+	azip "github.com/alexmullins/zip"
 )
 
 func TestArchiveStdinMode(t *testing.T) {
@@ -160,5 +163,122 @@ func TestArchiveZipRemovesPartialOnFailure(t *testing.T) {
 	}
 	if len(leftovers) != 0 {
 		t.Errorf("partial zip left behind: %v", leftovers)
+	}
+}
+
+func TestArchiveZipPasswordRequiresZipFormat(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "demo.txt")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := tgz.Archive([]string{src},
+		tgz.WithDir(t.TempDir()), tgz.WithTime(fixedTime), tgz.WithPassword("leak-check-pw"))
+	if err == nil || !strings.Contains(err.Error(), "password requires zip format") {
+		t.Errorf("err = %v, want password requires zip format", err)
+	}
+	if err != nil && strings.Contains(err.Error(), "leak-check-pw") {
+		t.Errorf("error leaked the password: %v", err)
+	}
+}
+
+func TestArchiveZipEncryptedRoundTrip(t *testing.T) {
+	fixture := writeFixture(t)
+	outDir := t.TempDir()
+	res, err := tgz.Archive([]string{filepath.Join(fixture, "demo")},
+		tgz.WithDir(outDir), tgz.WithTime(fixedTime),
+		tgz.WithFormat(tgz.FormatZip), tgz.WithPassword("s3cret-pw"))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	rc, err := azip.OpenReader(res.Path)
+	if err != nil {
+		t.Fatalf("OpenReader: %v", err)
+	}
+	defer rc.Close()
+
+	for _, f := range rc.File {
+		if f.Mode().IsDir() || f.Mode()&fs.ModeSymlink != 0 {
+			if f.IsEncrypted() {
+				t.Errorf("metadata entry %q must stay unencrypted", f.Name)
+			}
+		} else if !f.IsEncrypted() {
+			t.Errorf("file entry %q must be encrypted", f.Name)
+		}
+	}
+
+	// correct password
+	var hello *azip.File
+	for _, f := range rc.File {
+		if f.Name == "demo/a.txt" {
+			hello = f
+			break
+		}
+	}
+	if hello == nil {
+		t.Fatal("demo/a.txt missing")
+	}
+	hello.SetPassword("s3cret-pw")
+	r, err := hello.Open()
+	if err != nil {
+		t.Fatalf("Open with correct password: %v", err)
+	}
+	b, err := io.ReadAll(r)
+	r.Close()
+	if err != nil || string(b) != "alpha" {
+		t.Errorf("content = %q, err = %v, want alpha", b, err)
+	}
+
+	// wrong password on a different file entry
+	var beta *azip.File
+	for _, f := range rc.File {
+		if f.Name == "demo/sub/b.txt" {
+			beta = f
+			break
+		}
+	}
+	if beta == nil {
+		t.Fatal("demo/sub/b.txt missing")
+	}
+	beta.SetPassword("wrong")
+	r2, err := beta.Open()
+	if err == nil {
+		b2, e2 := io.ReadAll(r2)
+		r2.Close()
+		if e2 == nil {
+			t.Errorf("wrong password returned content %q with no error", b2)
+		}
+	} else if strings.Contains(err.Error(), "s3cret-pw") {
+		t.Errorf("error leaked the password: %v", err)
+	}
+}
+
+func TestArchiveZipEncryptedStdin(t *testing.T) {
+	outDir := t.TempDir()
+	res, err := tgz.Archive([]string{"-"},
+		tgz.WithReader(strings.NewReader("piped")),
+		tgz.WithDir(outDir), tgz.WithTime(fixedTime),
+		tgz.WithFormat(tgz.FormatZip), tgz.WithPassword("pw"))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	rc, err := azip.OpenReader(res.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	if len(rc.File) != 1 || !rc.File[0].IsEncrypted() {
+		t.Fatalf("want single encrypted stdin entry, got %v", rc.File)
+	}
+	rc.File[0].SetPassword("pw")
+	r, err := rc.File[0].Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	b, err := io.ReadAll(r)
+	if err != nil || string(b) != "piped" {
+		t.Errorf("content = %q, err = %v, want piped", b, err)
 	}
 }

@@ -102,6 +102,10 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 		return nil, fmt.Errorf("no sources given")
 	}
 
+	if o.password != "" && o.format != FormatZip {
+		return nil, fmt.Errorf("password requires zip format")
+	}
+
 	stdinMode := sources[0] == "-"
 	if stdinMode {
 		if o.reader == nil {
