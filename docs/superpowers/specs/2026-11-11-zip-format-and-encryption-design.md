@@ -7,7 +7,7 @@
 
 - 依赖：`github.com/alexmullins/zip`（`archive/zip` 的 fork，实现 WinZip AES-256 / AE-2），用户已确认可直接使用，不再自行实现密码学。
 - 该库同时作为**唯一 zip writer**：未加密 zip 也走它，避免"普通 zip 用标准库 / 加密 zip 用 fork"的双实现。已实测其未加密输出可被标准库 `archive/zip`、`bsdtar`、Python `zipfile` 正常读取。
-- Go 版本允许升到最高。跟随 `golang.org/x/crypto v0.58.0` 的 `go 1.26.0` 要求，把 `go.mod` 的 go directive 从 `1.21.0` 改为 `1.26.0`；`x/crypto` 显式钉版本，**禁止再用 `go get -u` 造成版本漂移**（`-u` 会拉到要求 go 1.26 的新版，虽可接受但会不可控地抬高使用者门槛）。
+- Go 版本允许升到最高。跟随 `golang.org/x/crypto v0.58.0` 的 `go 1.26.0` 要求，把 `go.mod` 的 go directive 从 `1.21.0` 改为 `1.26.0`（取满足依赖的最低版本，兼容面比直接写 1.27 更宽；本机工具链为 go1.27.3）。`x/crypto` 在 go.mod 中显式钉住 `v0.58.0`，保证可复现构建，避免后续 `go get -u` 拉到要求更高工具链的版本。
 - 包名 `tgz`、模块名 `github.com/afeiship/go-tgz` 保持不变，避免破坏性变更。
 - 默认行为完全不变：不带新选项时仍是 `.tar.gz`。
 - 加密粒度：**仅普通文件内容加密**，目录条目与 symlink 条目保持明文。这是实测得出的兼容性要求，见"实测结论"。
@@ -107,7 +107,7 @@ Archive → 校验 sources → filenameWithExt → 文件/流
 现有 13 个测试保持全绿（回归基线）。新增：
 
 - 未加密 zip：单文件 / 目录递归（嵌套、空目录）/ symlink 不跟随 / 中文名 / 多源 / stdin 模式 / 流模式 `WithWriter` / 失败时删除半成品 / 自动建目录 / 文件名后缀与选项矩阵。
-- 加密 zip：`WithPassword` 后用 `alexmullins/zip` 的 `File.SetPassword` 读回内容一致；错误密码触发 `ErrDecryption`；目录与 symlink 条目 `IsEncrypted() == false`；断言密码字符串不出现在任何 error。
+- 加密 zip：`WithPassword` 后用同一 `alexmullins/zip` 的 `OpenReader` + `File.SetPassword` 读回内容一致；错误密码触发 `ErrDecryption` 或 `ErrAuthentication`；目录与 symlink 条目 `IsEncrypted() == false`；断言密码字符串不出现在任何 error。
 - 组合错误：`FormatTarGz` + `WithPassword` 返回 `password requires zip format`。
 - 测试 helper `readEntries` 支持按扩展名分派：tar.gz 走 `gzip→tar`，未加密 zip 走标准库 `archive/zip`。
 - 互操作性（本次已手工实测，写入本文档）：`zipinfo -v` 确认 method 99 / encrypted；`bsdtar --passphrase` 正确解开、错误密码失败。该项依赖系统外部工具，不纳入 `npm test` 必跑用例。
@@ -122,6 +122,6 @@ Archive → 校验 sources → filenameWithExt → 文件/流
 
 1. `go.mod` 改为 go 1.26.0，加 `alexmullins/zip` + 钉住 `golang.org/x/crypto v0.58.0`；`go mod tidy` 后 `go build ./...` 通过。
 2. 抽出 `sink` 接口与 `writeArchive`，把现有 tar.gz 逻辑平移到 `tarSink`；跑现有测试全绿（回归）。
-3. 新增 `zipSink`、`Format`、`WithFormat`，参数化 `filenameWithExt`；补未加密 zip 测试，`npm test` 全绿。
+3. 新增 `zipSink`、`Format`、`WithFormat`，参数化 `filenameWithExt`；补未加密 zip 测试，`npm test` 全绿；手工复核未加密包能被标准库 `archive/zip` 与 `bsdtar` 正常读取。
 4. 新增 `WithPassword` 与加密粒度控制；补加密/错误密码/组合错误测试，`npm test` 全绿；手工复核 `zipinfo` + `bsdtar` 互操作。
 5. 同步 `README.md` 与 `llms.txt`；`npm test` 全绿后收尾。
