@@ -1,5 +1,5 @@
 # go-tgz
-> Pack files, directories and streams into timestamped .tar.gz archives. Go library extracted from the [tgz](https://github.com/aric-go/tgz) CLI.
+> Pack files, directories and streams into timestamped .tar.gz / .zip archives. Go library extracted from the [tgz](https://github.com/aric-go/tgz) CLI.
 
 ## Installation
 

@@ -1,5 +1,5 @@
 // Package tgz packs files, directories and streams into timestamped
-// .tar.gz archives.
+// .tar.gz archives, or .zip archives via WithFormat(FormatZip).
 package tgz
 
 import (
@@ -64,7 +64,7 @@ func WithDir(dir string) Option { return func(o *options) { o.dir = dir } }
 // Default "20060102-150405".
 func WithTimestamp(layout string) Option { return func(o *options) { o.ts = layout } }
 
-// WithWriter streams the gzip output to w instead of writing a file.
+// WithWriter streams the archive output to w instead of writing a file.
 // Takes precedence over WithDir.
 func WithWriter(w io.Writer) Option { return func(o *options) { o.writer = w } }
 
@@ -89,9 +89,10 @@ func (o *options) newSink(w io.Writer) sink {
 }
 
 // Archive validates all sources, generates a timestamped filename and
-// writes a tar.gz archive. With sources[0] == "-" it packs the reader
-// given via WithReader as a single "stdin" entry. The library never
-// prints; callers decide how to report the result.
+// writes a tar.gz (or zip, via WithFormat) archive. With sources[0] ==
+// "-" it packs the reader given via WithReader as a single "stdin"
+// entry. The library never prints; callers decide how to report the
+// result.
 func Archive(sources []string, opts ...Option) (*Result, error) {
 	o := &options{dir: ".", ts: defaultTimestamp, now: time.Now()}
 	for _, opt := range opts {
