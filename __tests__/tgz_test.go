@@ -2,8 +2,10 @@ package tgz_test
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +55,50 @@ func readEntries(t *testing.T, r io.Reader) map[string]entry {
 	}
 }
 
+// readZipEntries unpacks an unencrypted zip stream via the standard
+// library, proving the output is interoperable.
+func readZipEntries(t *testing.T, r io.Reader, size int64) map[string]entry {
+	t.Helper()
+	zr, err := zip.NewReader(r.(io.ReaderAt), size)
+	if err != nil {
+		t.Fatalf("zip reader: %v", err)
+	}
+	m := map[string]entry{}
+	for _, f := range zr.File {
+		e := entry{}
+		switch {
+		case f.Mode().IsDir():
+			e.typeflag = tar.TypeDir
+		case f.Mode()&fs.ModeSymlink != 0:
+			e.typeflag = tar.TypeSymlink
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatalf("open symlink %s: %v", f.Name, err)
+			}
+			b, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				t.Fatalf("read symlink %s: %v", f.Name, err)
+			}
+			e.link = string(b)
+		default:
+			e.typeflag = tar.TypeReg
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatalf("open %s: %v", f.Name, err)
+			}
+			b, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				t.Fatalf("read %s: %v", f.Name, err)
+			}
+			e.content = string(b)
+		}
+		m[strings.TrimSuffix(f.Name, "/")] = e
+	}
+	return m
+}
+
 // readEntriesFile is readEntries for a file path.
 func readEntriesFile(t *testing.T, path string) map[string]entry {
 	t.Helper()
@@ -61,6 +107,13 @@ func readEntriesFile(t *testing.T, path string) map[string]entry {
 		t.Fatalf("open %s: %v", path, err)
 	}
 	defer f.Close()
+	if strings.HasSuffix(path, ".zip") {
+		info, err := f.Stat()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return readZipEntries(t, f, info.Size())
+	}
 	return readEntries(t, f)
 }
 
@@ -303,5 +356,54 @@ func TestArchiveSourceNotFound(t *testing.T) {
 func TestArchiveNoSources(t *testing.T) {
 	if _, err := tgz.Archive(nil); err == nil || !strings.Contains(err.Error(), "no sources") {
 		t.Errorf("err = %v, want no sources error", err)
+	}
+}
+
+func TestArchiveZipFilename(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "demo.txt")
+	if err := os.WriteFile(src, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+	res, err := tgz.Archive([]string{src},
+		tgz.WithDir(outDir), tgz.WithTime(fixedTime), tgz.WithFormat(tgz.FormatZip))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	if res.Name != "demo_20261110-203005.zip" {
+		t.Errorf("Name = %q, want demo_20261110-203005.zip", res.Name)
+	}
+	if res.Path != filepath.Join(outDir, "demo_20261110-203005.zip") {
+		t.Errorf("Path = %q, want zip path", res.Path)
+	}
+}
+
+func TestArchiveZipRoundTrip(t *testing.T) {
+	fixture := writeFixture(t)
+	outDir := t.TempDir()
+	res, err := tgz.Archive([]string{filepath.Join(fixture, "demo")},
+		tgz.WithDir(outDir), tgz.WithTime(fixedTime), tgz.WithFormat(tgz.FormatZip))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	entries := readEntriesFile(t, res.Path)
+	want := map[string]entry{
+		"demo":           {typeflag: tar.TypeDir},
+		"demo/a.txt":     {typeflag: tar.TypeReg, content: "alpha"},
+		"demo/sub":       {typeflag: tar.TypeDir},
+		"demo/sub/b.txt": {typeflag: tar.TypeReg, content: "beta"},
+		"demo/empty":     {typeflag: tar.TypeDir},
+		"demo/link.txt":  {typeflag: tar.TypeSymlink, link: "a.txt"},
+	}
+	for name, e := range want {
+		got, ok := entries[name]
+		if !ok {
+			t.Errorf("entry %s missing, got %v", name, entries)
+			continue
+		}
+		if got.typeflag != e.typeflag || got.content != e.content || got.link != e.link {
+			t.Errorf("entry %s = %+v, want %+v", name, got, e)
+		}
 	}
 }

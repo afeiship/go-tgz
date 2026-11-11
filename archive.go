@@ -30,7 +30,7 @@ type sink interface {
 // the source list to that single "-"). Directories are walked recursively
 // with entry paths relative to the directory itself. All sources must
 // already be validated by the caller.
-func writeArchive(w io.Writer, sources []string, r io.Reader, s sink) (err error) {
+func writeArchive(sources []string, r io.Reader, s sink) (err error) {
 	defer func() {
 		if e := s.Close(); err == nil && e != nil {
 			err = e

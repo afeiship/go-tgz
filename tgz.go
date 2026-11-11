@@ -18,6 +18,14 @@ const (
 	stdinBase        = "bk"
 )
 
+// Format selects the archive container.
+type Format uint8
+
+const (
+	FormatTarGz Format = iota
+	FormatZip
+)
+
 // Result describes the archive produced by Archive.
 type Result struct {
 	// Name is the archive filename, e.g. demo_20261108-153005.tar.gz.
@@ -28,13 +36,15 @@ type Result struct {
 
 // options carries the resolved configuration for Archive.
 type options struct {
-	prefix string
-	suffix string
-	dir    string
-	ts     string
-	writer io.Writer
-	reader io.Reader
-	now    time.Time
+	prefix   string
+	suffix   string
+	dir      string
+	ts       string
+	writer   io.Writer
+	reader   io.Reader
+	now      time.Time
+	format   Format
+	password string
 }
 
 // Option configures Archive.
@@ -63,6 +73,20 @@ func WithReader(r io.Reader) Option { return func(o *options) { o.reader = r } }
 
 // WithTime fixes the timestamp used in the filename. Default time.Now().
 func WithTime(t time.Time) Option { return func(o *options) { o.now = t } }
+
+// WithFormat selects the archive format. Default FormatTarGz.
+func WithFormat(f Format) Option { return func(o *options) { o.format = f } }
+
+// WithPassword sets the AES-256 password for zip archives. An empty
+// string means no encryption. Only valid with FormatZip.
+func WithPassword(pwd string) Option { return func(o *options) { o.password = pwd } }
+
+func (o *options) newSink(w io.Writer) sink {
+	if o.format == FormatZip {
+		return newZipSink(w, o.password)
+	}
+	return newTarSink(w)
+}
 
 // Archive validates all sources, generates a timestamped filename and
 // writes a tar.gz archive. With sources[0] == "-" it packs the reader
@@ -102,10 +126,14 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 		}
 	}
 
-	name := Filename(base, o.prefix, o.ts, o.suffix, o.now)
+	ext := ".tar.gz"
+	if o.format == FormatZip {
+		ext = ".zip"
+	}
+	name := filenameWithExt(base, o.prefix, o.ts, o.suffix, o.now, ext)
 
 	if o.writer != nil {
-		if err := writeArchive(o.writer, sources, o.reader, newTarSink(o.writer)); err != nil {
+		if err := writeArchive(sources, o.reader, o.newSink(o.writer)); err != nil {
 			return nil, err
 		}
 		return &Result{Name: name}, nil
@@ -120,7 +148,7 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 	}
 
 	path := filepath.Join(o.dir, name)
-	if err := writeArchive(out, sources, o.reader, newTarSink(out)); err != nil {
+	if err := writeArchive(sources, o.reader, o.newSink(out)); err != nil {
 		out.Close()
 		os.Remove(path)
 		return nil, err

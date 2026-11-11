@@ -2,7 +2,10 @@ package tgz_test
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -87,5 +90,75 @@ func TestTarGzBaselineAfterRefactor(t *testing.T) {
 		if got.typeflag != e.typeflag || got.content != e.content || got.link != e.link {
 			t.Errorf("entry %s = %+v, want %+v", name, got, e)
 		}
+	}
+}
+
+func TestArchiveZipStreamMode(t *testing.T) {
+	var buf bytes.Buffer
+	res, err := tgz.Archive([]string{"-"},
+		tgz.WithReader(bytes.NewReader([]byte("streamed"))),
+		tgz.WithWriter(&buf),
+		tgz.WithTime(fixedTime),
+		tgz.WithFormat(tgz.FormatZip),
+	)
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	if res.Path != "" {
+		t.Errorf("Path = %q, want empty in stream mode", res.Path)
+	}
+	if res.Name != "bk_20261110-203005.zip" {
+		t.Errorf("Name = %q, want bk_20261110-203005.zip", res.Name)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("zip reader: %v", err)
+	}
+	if len(zr.File) != 1 || zr.File[0].Name != "stdin" {
+		t.Fatalf("zip entries = %v, want single stdin entry", zr.File)
+	}
+	rc, err := zr.File[0].Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "streamed" {
+		t.Errorf("stdin content = %q, want streamed", b)
+	}
+}
+
+func TestArchiveZipRemovesPartialOnFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("chmod-000 does not block root from reading the file")
+	}
+	dir := t.TempDir()
+	srcDir := filepath.Join(dir, "src")
+	if err := os.Mkdir(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bPath := filepath.Join(srcDir, "b.txt")
+	if err := os.WriteFile(bPath, []byte("b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(bPath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(bPath, 0o644) })
+
+	outDir := t.TempDir()
+	if _, err := tgz.Archive([]string{srcDir},
+		tgz.WithDir(outDir), tgz.WithTime(fixedTime), tgz.WithFormat(tgz.FormatZip)); err == nil {
+		t.Fatal("Archive: expected error, got nil")
+	}
+	leftovers, err := filepath.Glob(filepath.Join(outDir, "*.zip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leftovers) != 0 {
+		t.Errorf("partial zip left behind: %v", leftovers)
 	}
 }
