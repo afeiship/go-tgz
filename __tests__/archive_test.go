@@ -3,6 +3,7 @@ package tgz_test
 import (
 	"archive/tar"
 	"bytes"
+	"path/filepath"
 	"testing"
 
 	"github.com/afeiship/go-tgz"
@@ -57,5 +58,34 @@ func TestArchiveStreamMode(t *testing.T) {
 	entries := readEntries(t, &buf)
 	if entries["stdin"].content != "streamed" {
 		t.Errorf("entries = %v, want stdin entry with content %q", entries, "streamed")
+	}
+}
+
+func TestTarGzBaselineAfterRefactor(t *testing.T) {
+	fixture := writeFixture(t)
+	outDir := t.TempDir()
+	res, err := tgz.Archive([]string{filepath.Join(fixture, "demo")},
+		tgz.WithDir(outDir), tgz.WithTime(fixedTime))
+	if err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	entries := readEntriesFile(t, res.Path)
+	want := map[string]entry{
+		"demo":           {typeflag: tar.TypeDir},
+		"demo/a.txt":     {typeflag: tar.TypeReg, content: "alpha"},
+		"demo/sub":       {typeflag: tar.TypeDir},
+		"demo/sub/b.txt": {typeflag: tar.TypeReg, content: "beta"},
+		"demo/empty":     {typeflag: tar.TypeDir},
+		"demo/link.txt":  {typeflag: tar.TypeSymlink, link: "a.txt"},
+	}
+	for name, e := range want {
+		got, ok := entries[name]
+		if !ok {
+			t.Errorf("entry %s missing, got %v", name, entries)
+			continue
+		}
+		if got.typeflag != e.typeflag || got.content != e.content || got.link != e.link {
+			t.Errorf("entry %s = %+v, want %+v", name, got, e)
+		}
 	}
 }

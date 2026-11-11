@@ -105,7 +105,7 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 	name := Filename(base, o.prefix, o.ts, o.suffix, o.now)
 
 	if o.writer != nil {
-		if err := writeTarGz(o.writer, sources, o.reader); err != nil {
+		if err := writeArchive(o.writer, sources, o.reader, newTarSink(o.writer)); err != nil {
 			return nil, err
 		}
 		return &Result{Name: name}, nil
@@ -120,7 +120,7 @@ func Archive(sources []string, opts ...Option) (*Result, error) {
 	}
 
 	path := filepath.Join(o.dir, name)
-	if err := writeTarGz(out, sources, o.reader); err != nil {
+	if err := writeArchive(out, sources, o.reader, newTarSink(out)); err != nil {
 		out.Close()
 		os.Remove(path)
 		return nil, err
