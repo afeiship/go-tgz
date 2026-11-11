@@ -2,11 +2,17 @@ package tgz
 
 import "time"
 
-// Filename generates the archive filename:
+// Filename generates the tar.gz archive filename:
 // [{pre}_]{base}_{tsLayout}[_{suf}].tar.gz
 // The base is always kept; pre adds a leading tag, suf appends one.
 // An invalid tsLayout is emitted verbatim, as Go's time.Format does.
 func Filename(base, pre, tsLayout, suf string, t time.Time) string {
+	return filenameWithExt(base, pre, tsLayout, suf, t, ".tar.gz")
+}
+
+// filenameWithExt is the shared implementation; ext is chosen by Archive
+// from the resolved format so name and content never disagree.
+func filenameWithExt(base, pre, tsLayout, suf string, t time.Time, ext string) string {
 	if pre != "" {
 		base = pre + "_" + base
 	}
@@ -14,5 +20,5 @@ func Filename(base, pre, tsLayout, suf string, t time.Time) string {
 	if suf != "" {
 		name += "_" + suf
 	}
-	return name + ".tar.gz"
+	return name + ext
 }

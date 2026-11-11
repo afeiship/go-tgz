@@ -32,3 +32,12 @@ func TestFilename(t *testing.T) {
 		})
 	}
 }
+
+func TestFilenameWithExt(t *testing.T) {
+	now := time.Date(2026, 11, 8, 15, 30, 5, 0, time.UTC)
+	// filenameWithExt is unexported; verified indirectly through Archive in
+	// Task 5. This test locks the public helper's unchanged tar.gz behavior.
+	if got := tgz.Filename("demo", "", "20060102", "", now); got != "demo_20261108.tar.gz" {
+		t.Errorf("Filename = %q, want demo_20261108.tar.gz", got)
+	}
+}
