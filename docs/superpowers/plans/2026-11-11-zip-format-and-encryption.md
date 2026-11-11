@@ -37,7 +37,7 @@ All tasks are on `main`, no worktree. **Do not push to remote** (global rule).
 - Modify: `go.mod`
 - Create: `go.sum` (generated)
 
-- [ ] **Step 1: Add dependencies with pinned versions**
+- [x] **Step 1: Add dependencies with pinned versions**
 
 Run from `/Users/afei/github/go-tgz`:
 
@@ -58,7 +58,7 @@ require github.com/alexmullins/zip v0.0.0-20180717182244-4affb64b04d0
 require golang.org/x/crypto v0.58.0 // indirect
 ```
 
-- [ ] **Step 2: Tidy and verify build**
+- [x] **Step 2: Tidy and verify build**
 
 ```bash
 go mod tidy
@@ -68,7 +68,7 @@ npm test
 
 Expected: build succeeds; all 14 existing tests PASS (regression baseline). `go.sum` is created.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add go.mod go.sum
@@ -83,7 +83,7 @@ git commit -m "chore: add alexmullins/zip dependency and bump go directive"
 - Modify: `filename.go:1-17`
 - Test: `__tests__/filename_test.go`
 
-- [ ] **Step 1: Write the failing test for zip extension**
+- [x] **Step 1: Write the failing test for zip extension**
 
 Append to `__tests__/filename_test.go`:
 
@@ -98,7 +98,7 @@ func TestFilenameWithExt(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to confirm it passes (locks the baseline)**
+- [x] **Step 2: Run to confirm it passes (locks the baseline)**
 
 ```bash
 go test __tests__/filename_test.go -v
@@ -106,7 +106,7 @@ go test __tests__/filename_test.go -v
 
 Expected: PASS (all 7 tests including the new one).
 
-- [ ] **Step 3: Implement `filenameWithExt`**
+- [x] **Step 3: Implement `filenameWithExt`**
 
 Replace the entire contents of `filename.go` with:
 
@@ -137,7 +137,7 @@ func filenameWithExt(base, pre, tsLayout, suf string, t time.Time, ext string) s
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npm test
@@ -145,7 +145,7 @@ npm test
 
 Expected: all 15 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add filename.go __tests__/filename_test.go
@@ -160,7 +160,7 @@ git commit -m "refactor: parameterize archive filename extension"
 - Modify: `archive.go:1-155` (full rewrite)
 - Test: `__tests__/tgz_test.go`, `__tests__/archive_test.go` (unchanged; regression)
 
-- [ ] **Step 1: Write a regression marker test (no new behavior)**
+- [x] **Step 1: Write a regression marker test (no new behavior)**
 
 Append to `__tests__/archive_test.go`:
 
@@ -195,7 +195,7 @@ func TestTarGzBaselineAfterRefactor(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run baseline**
+- [x] **Step 2: Run baseline**
 
 ```bash
 npm test
@@ -203,7 +203,7 @@ npm test
 
 Expected: all 16 tests PASS (this test already passes against current code; it is the guard for the refactor).
 
-- [ ] **Step 3: Rewrite `archive.go`**
+- [x] **Step 3: Rewrite `archive.go`**
 
 Replace the entire contents of `archive.go` with:
 
@@ -409,7 +409,7 @@ func (s *tarSink) Close() error {
 }
 ```
 
-- [ ] **Step 4: Update `tgz.go` call sites (still tar.gz only)**
+- [x] **Step 4: Update `tgz.go` call sites (still tar.gz only)**
 
 In `tgz.go`, replace both occurrences of:
 
@@ -433,7 +433,7 @@ writeArchive(out, sources, o.reader, newTarSink(out))
 
 No other changes to `tgz.go` in this task.
 
-- [ ] **Step 5: Run full regression**
+- [x] **Step 5: Run full regression**
 
 ```bash
 go build ./...
@@ -442,7 +442,7 @@ npm test
 
 Expected: build succeeds; all 16 tests PASS. Specifically `TestArchiveWriterFlushError` must still pass (gzip flush error propagated through `writeArchive`'s deferred Close), and `TestArchiveRemovesPartialOnFailure` must still pass (error from `os.Open` on chmod-000 file propagates unchanged).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add archive.go tgz.go __tests__/archive_test.go
@@ -458,7 +458,7 @@ git commit -m "refactor: extract format-agnostic archive walker and tar sink"
 - Create: `zip.go`
 - Test: `__tests__/tgz_test.go`, `__tests__/archive_test.go`
 
-- [ ] **Step 1: Write failing tests for zip format**
+- [x] **Step 1: Write failing tests for zip format**
 
 Append to `__tests__/tgz_test.go`:
 
@@ -513,7 +513,7 @@ func TestArchiveZipRoundTrip(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 ```bash
 go test __tests__/tgz_test.go -run 'TestArchiveZip' -v
@@ -521,7 +521,7 @@ go test __tests__/tgz_test.go -run 'TestArchiveZip' -v
 
 Expected: compile FAIL — `tgz.WithFormat` and `tgz.FormatZip` undefined.
 
-- [ ] **Step 3: Add `Format` and `WithFormat` to `tgz.go`**
+- [x] **Step 3: Add `Format` and `WithFormat` to `tgz.go`**
 
 Add after the `stdinBase` constant:
 
@@ -562,7 +562,7 @@ func WithFormat(f Format) Option { return func(o *options) { o.format = f } }
 func WithPassword(pwd string) Option { return func(o *options) { o.password = pwd } }
 ```
 
-- [ ] **Step 4: Add `zip.go`**
+- [x] **Step 4: Add `zip.go`**
 
 Create `zip.go`:
 
@@ -644,7 +644,7 @@ func (s *zipSink) Close() error {
 }
 ```
 
-- [ ] **Step 5: Wire format dispatch into `Archive` in `tgz.go`**
+- [x] **Step 5: Wire format dispatch into `Archive` in `tgz.go`**
 
 Replace the name computation line:
 
@@ -683,7 +683,7 @@ and
 	if err := writeArchive(out, sources, o.reader, o.newSink(out)); err != nil {
 ```
 
-- [ ] **Step 6: Extend `readEntries` in `__tests__/tgz_test.go` to dispatch on zip**
+- [x] **Step 6: Extend `readEntries` in `__tests__/tgz_test.go` to dispatch on zip**
 
 Replace the body of `readEntries` so it accepts any archive reader and branches on the source filename. Because `readEntries` is shared by `read(t, r)` helpers that don't know the filename, change the helper signatures as follows:
 
@@ -786,7 +786,7 @@ func readEntriesFile(t *testing.T, path string) map[string]entry {
 
 For the stream-mode test (`TestArchiveStreamMode` in `__tests__/archive_test.go`), tar.gz remains the default so `readEntries(t, &buf)` is unchanged. Add a separate zip stream test in Task 4 Step 7.
 
-- [ ] **Step 7: Add failing zip-specific tests**
+- [x] **Step 7: Add failing zip-specific tests**
 
 Append to `__tests__/archive_test.go` (add `"archive/zip"` and `"io/fs"` imports if not already present; `bytes` is already imported):
 
@@ -862,7 +862,7 @@ func TestArchiveZipRemovesPartialOnFailure(t *testing.T) {
 }
 ```
 
-- [ ] **Step 8: Run all tests**
+- [x] **Step 8: Run all tests**
 
 ```bash
 go build ./...
@@ -871,7 +871,7 @@ npm test
 
 Expected: all 20 tests PASS. `TestArchiveZipRoundTrip` proves dir/nested/empty-dir/symlink/中文-compatible naming through the standard library reader.
 
-- [ ] **Step 9: Manual interoperability check (unencrypted zip)**
+- [x] **Step 9: Manual interoperability check (unencrypted zip)**
 
 ```bash
 go test __tests__/*.go -run TestArchiveZipRoundTrip -v >/dev/null
@@ -881,7 +881,7 @@ go test __tests__/*.go -run TestArchiveZipRoundTrip -v >/dev/null
 
 Additionally confirm with an external tool by generating one zip through the test helper is not needed — `readZipEntries` uses the standard library, and the earlier design-phase probe already confirmed `bsdtar` reads plain `alexmullins/zip` output including symlink and Chinese names.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add tgz.go zip.go __tests__/tgz_test.go __tests__/archive_test.go
@@ -896,7 +896,7 @@ git commit -m "feat: add zip format output via alexmullins/zip"
 - Modify: `tgz.go:70-120`
 - Test: `__tests__/tgz_test.go`, `__tests__/archive_test.go`
 
-- [ ] **Step 1: Write failing tests for password behavior**
+- [x] **Step 1: Write failing tests for password behavior**
 
 Append to `__tests__/archive_test.go`:
 
@@ -1043,7 +1043,7 @@ func TestArchiveZipPasswordStreamMode(t *testing.T) {
 
 Add imports to `__tests__/archive_test.go`: `"strings"`, `"io/fs"`, `"path/filepath"`, `"io"`, `azip "github.com/alexmullins/zip"`. Add imports to `__tests__/tgz_test.go`: `azip "github.com/alexmullins/zip"` (`"bytes"` was already added in Task 4 Step 6).
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 ```bash
 go test __tests__/*.go -run 'TestArchiveZipPassword|TestArchiveZipEncrypted' -v
@@ -1051,7 +1051,7 @@ go test __tests__/*.go -run 'TestArchiveZipPassword|TestArchiveZipEncrypted' -v
 
 Expected: `TestArchiveZipPasswordRequiresZipFormat` FAILS (no enforcement yet); encrypted round-trip tests PASS because `newZipSink` already consumes `o.password` (wired in Task 4 Step 4). That is acceptable — the failing test drives the remaining change.
 
-- [ ] **Step 3: Add combination-error enforcement in `Archive`**
+- [x] **Step 3: Add combination-error enforcement in `Archive`**
 
 In `tgz.go`, immediately after the `if len(sources) == 0 { ... }` block, add:
 
@@ -1061,7 +1061,7 @@ In `tgz.go`, immediately after the `if len(sources) == 0 { ... }` block, add:
 	}
 ```
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```bash
 go build ./...
@@ -1070,7 +1070,7 @@ npm test
 
 Expected: all 24 tests PASS.
 
-- [ ] **Step 5: Manual interoperability check (encrypted zip)**
+- [x] **Step 5: Manual interoperability check (encrypted zip)**
 
 Generate a fixture zip with a throwaway program in a fresh temp dir (never inside the repo):
 
@@ -1106,7 +1106,7 @@ rm -rf "$T"
 
 Expected: `zipinfo` reports `unknown (99)` and `encrypted`; `bsdtar` prints `hello`. Wrong-password behavior was already confirmed during the design phase.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tgz.go __tests__/tgz_test.go __tests__/archive_test.go
@@ -1121,7 +1121,7 @@ git commit -m "feat: add AES-256 password encryption for zip archives"
 - Modify: `README.md`
 - Modify: `llms.txt`
 
-- [ ] **Step 1: Update `README.md`**
+- [x] **Step 1: Update `README.md`**
 
 In the Options table, add two rows after `WithTime`:
 
@@ -1164,7 +1164,7 @@ Add to Installation a note:
 Requires Go 1.26+ (raised for `golang.org/x/crypto v0.58.0`).
 ```
 
-- [ ] **Step 2: Update `llms.txt`**
+- [x] **Step 2: Update `llms.txt`**
 
 Replace the API bullet for `Archive` description to mention format/password, and add:
 
@@ -1183,7 +1183,7 @@ Add to Behavior notes:
 
 Update the Errors list with the new error string. Keep the "standard library only" line removed — it is no longer true.
 
-- [ ] **Step 3: Verify docs match code**
+- [x] **Step 3: Verify docs match code**
 
 ```bash
 grep -n "WithFormat\|WithPassword\|FormatZip\|password requires zip" README.md llms.txt
@@ -1193,7 +1193,7 @@ npm test
 
 Expected: grep shows all entries; build and all 24 tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md llms.txt
@@ -1204,7 +1204,7 @@ git commit -m "docs: document zip format and AES password options"
 
 ## Task 7: Final verification
 
-- [ ] **Step 1: Full test suite + vet**
+- [x] **Step 1: Full test suite + vet**
 
 ```bash
 go vet ./...
@@ -1213,7 +1213,7 @@ npm test
 
 Expected: vet clean; all 24 tests PASS.
 
-- [ ] **Step 2: Dependency audit**
+- [x] **Step 2: Dependency audit**
 
 ```bash
 go list -m all
@@ -1222,7 +1222,7 @@ git status --short
 
 Expected: module list contains `github.com/alexmullins/zip v0.0.0-20180717182244-4affb64b04d0` and `golang.org/x/crypto v0.58.0`; working tree clean; nothing pushed.
 
-- [ ] **Step 3: Report**
+- [x] **Step 3: Report**
 
 Summarize: 2 new options, 1 new file (`zip.go`), refactored `archive.go`/`tgz.go`/`filename.go`, 24 tests passing, docs synced, no remote push performed.
 
