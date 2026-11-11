@@ -1,13 +1,16 @@
 # go-tgz
 
-> Pack files, directories and streams into timestamped .tar.gz archives.
-> Go library, standard library only (archive/tar + compress/gzip).
+> Pack files, directories and streams into timestamped .tar.gz / .zip archives.
+> Go library; tar.gz via archive/tar + compress/gzip, zip + WinZip AES-256 via github.com/alexmullins/zip.
 > Import: github.com/afeiship/go-tgz (package tgz)
 
 ## API
 
-- tgz.Archive(sources []string, opts ...Option) (*Result, error) — validate sources, build timestamped filename, create output dir, write tar.gz. sources[0] == "-" packs the WithReader stream as a single "stdin" entry (base name falls back to "bk"). Never prints.
+- tgz.Archive(sources []string, opts ...Option) (*Result, error) — validate sources, build timestamped filename, create output dir, write tar.gz (or .zip via WithFormat). sources[0] == "-" packs the WithReader stream as a single "stdin" entry (base name falls back to "bk"). Never prints.
 - tgz.Filename(base, pre, tsLayout, suf string, t time.Time) string — "[{pre}_]{base}_{ts}[_{suf}].tar.gz"; invalid layout passes through verbatim.
+- tgz.Format / FormatTarGz / FormatZip — archive container selector
+- tgz.WithFormat(Format) — default FormatTarGz; FormatZip writes .zip
+- tgz.WithPassword(string) — WinZip AES-256 password; empty = no encryption; errors with "password requires zip format" when format is tar.gz; only regular-file data encrypted, filenames stay visible
 
 ## Options
 
@@ -30,12 +33,15 @@
 - "reader is required for source \"-\""
 - "stdin mode takes a single source \"-\""
 - "source not found: <path>" (other IO errors wrap the cause with %w)
+- "password requires zip format"
 
 ## Behavior notes
 
 - Validate-all-then-pack; failed packs remove the partial archive — no half-written archives on disk.
 - Dirs: recursive, entries relative to the dir itself, prefixed with the directory's name (e.g. demo/a.txt), empty dirs kept, symlinks stored not followed.
 - Checked writer closes: a failed gzip flush surfaces as an error, never a silent truncated success.
+- Zip output uses github.com/alexmullins/zip (fork of archive/zip with WinZip AE-2). Plain zip interoperates with stdlib archive/zip, bsdtar, Python zipfile; encrypted zip needs macOS Archive Utility / 7-Zip / WinZip (Info-ZIP unzip cannot decrypt AES). Dir and symlink entries are NOT encrypted — encrypting them breaks libarchive extraction.
+- Go directive is 1.26.0; golang.org/x/crypto v0.58.0 pinned indirect.
 
 ## Tests
 
